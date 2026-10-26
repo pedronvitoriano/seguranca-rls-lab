@@ -13,7 +13,9 @@
 | Usuário logado lê a nota de outro | sim | não, só as próprias |
 | Usuário logado apaga ou cria linha em nome de outro | sim | não |
 
-Isso é o que um atacante faz só com a URL e a chave pública do projeto, sem invadir nada. Segundo levantamentos de 2026 (de fornecedores de segurança, então a ordem de grandeza vale mais que o número exato), mais da metade dos apps feitos com essas ferramentas e hospedados no Supabase tinham tabelas legíveis sem login.
+Isso é o que um atacante faz só com a URL e a chave pública do projeto, sem invadir nada. Falhas desse tipo têm registro oficial: o [CVE-2025-48757](https://nvd.nist.gov/vuln/detail/CVE-2025-48757) descreve políticas de RLS insuficientes em sites criados pela Lovable, que permitiam a quem não estava logado ler e gravar nas tabelas (a Lovable contesta, dizendo que a proteção dos dados é responsabilidade de quem publica o app).
+
+Ligar o RLS sozinho, sem política nenhuma, já fecha o vazamento para quem não fez login: o teste `test_ligar_o_rls_sozinho_ja_bloqueia_o_anonimo` prova isso. As políticas servem para liberar de volta só o que cada usuário pode ver.
 
 ## Como rodar
 
@@ -24,7 +26,7 @@ pip install -r requirements.txt
 pytest -v
 ```
 
-Os testes montam o banco do zero, entram como cada papel (`anon`, `authenticated`) e tentam o que um atacante tentaria. O CI do GitHub roda o mesmo com um Postgres de serviço.
+São 8 testes. Se o RLS da tabela corrigida for desligado, 4 deles falham. Eles montam o banco do zero, entram como cada papel (`anon`, `authenticated`) e tentam o que um atacante tentaria. O CI do GitHub roda o mesmo com um Postgres de serviço.
 
 ## Como saber se o seu projeto tem o problema
 
