@@ -29,6 +29,14 @@ def volta_a_admin(conn):
     conn.execute("RESET ROLE")
 
 
+@pytest.fixture(autouse=True)
+def papel_limpo(request):
+    """Cada teste começa como administrador, mesmo que o anterior tenha falhado no meio."""
+    if "banco" in request.fixturenames:
+        request.getfixturevalue("banco").execute("RESET ROLE")
+    yield
+
+
 @pytest.fixture(scope="module")
 def banco():
     with psycopg.connect(DSN, autocommit=True) as admin:
@@ -107,3 +115,19 @@ def test_auditoria_acha_a_tabela_sem_rls(banco):
     resultado = {t: (rls, anon) for t, rls, anon in banco.execute(sql).fetchall()}
     assert resultado["notas_vulneravel"] == (False, True)
     assert resultado["notas_corrigida"] == (True, False)
+
+
+def test_ligar_o_rls_sozinho_ja_bloqueia_o_anonimo(banco):
+    """Um único comando fecha o vazamento: RLS ligado sem política nenhuma nega tudo."""
+    banco.execute("DROP TABLE IF EXISTS notas_um_comando")
+    banco.execute("CREATE TABLE public.notas_um_comando (id serial PRIMARY KEY, conteudo text)")
+    banco.execute("GRANT SELECT ON public.notas_um_comando TO anon")
+    banco.execute("INSERT INTO notas_um_comando (conteudo) VALUES ('a'), ('b')")
+    como(banco, "anon")
+    antes = banco.execute("SELECT count(*) FROM notas_um_comando").fetchone()[0]
+    volta_a_admin(banco)
+    banco.execute("ALTER TABLE public.notas_um_comando ENABLE ROW LEVEL SECURITY")
+    como(banco, "anon")
+    depois = banco.execute("SELECT count(*) FROM notas_um_comando").fetchone()[0]
+    volta_a_admin(banco)
+    assert (antes, depois) == (2, 0)
